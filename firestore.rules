@@ -1,0 +1,412 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidEmailKey(id) {
+      return id is string && id.size() >= 5 && id.size() <= 128 && id.matches('^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() &&
+        request.auth.token.email is string &&
+        request.auth.token.email.lower() == 'mikhaelrisa@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isApprovedAuthor() {
+      return isVerifiedUser() &&
+        exists(/databases/$(database)/documents/authors/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/authors/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function isValidProse(data) {
+      return data.keys().hasAll([
+          'id',
+          'accession',
+          'title',
+          'subtitle',
+          'author',
+          'authorUid',
+          'theme',
+          'year',
+          'pullQuote',
+          'excerpt',
+          'body',
+          'featuredRank',
+          'status',
+          'marginNotes',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'accession',
+          'title',
+          'subtitle',
+          'author',
+          'authorUid',
+          'theme',
+          'year',
+          'epigraph',
+          'pullQuote',
+          'excerpt',
+          'body',
+          'image',
+          'imageCaption',
+          'featuredRank',
+          'status',
+          'marginNotes',
+          'editorNote',
+          'editorNoteUpdatedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.accession is string && data.accession.size() >= 2 && data.accession.size() <= 64 &&
+        data.title is string && data.title.size() >= 3 && data.title.size() <= 180 &&
+        data.subtitle is string && data.subtitle.size() <= 260 &&
+        data.author is string && data.author.size() >= 2 && data.author.size() <= 100 &&
+        data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 &&
+        data.theme in ['Surat & Epistolari', 'Melankolia', 'Senja & Kota', 'Alam & Rindu'] &&
+        data.year is string && data.year.size() >= 4 && data.year.size() <= 10 &&
+        (!('epigraph' in data) || (data.epigraph is string && data.epigraph.size() <= 400)) &&
+        data.pullQuote is string && data.pullQuote.size() >= 3 && data.pullQuote.size() <= 600 &&
+        data.excerpt is string && data.excerpt.size() >= 3 && data.excerpt.size() <= 500 &&
+        data.body is string && data.body.size() >= 20 && data.body.size() <= 50000 &&
+        (!('image' in data) || (data.image is string && data.image.size() <= 650000)) &&
+        (!('imageCaption' in data) || (data.imageCaption is string && data.imageCaption.size() <= 240)) &&
+        data.featuredRank in ['lead', 'curated', 'archive'] &&
+        data.status in ['published', 'draft'] &&
+        data.marginNotes is list && data.marginNotes.size() <= 12 &&
+        (
+          data.marginNotes.size() == 0 ||
+          (
+            data.marginNotes[0] is map &&
+            data.marginNotes[0].keys().hasAll(['id', 'term', 'note']) &&
+            data.marginNotes[0].keys().hasOnly(['id', 'term', 'note']) &&
+            data.marginNotes[0].id is string && data.marginNotes[0].id.size() <= 64 &&
+            data.marginNotes[0].term is string && data.marginNotes[0].term.size() <= 120 &&
+            data.marginNotes[0].note is string && data.marginNotes[0].note.size() <= 600
+          )
+        ) &&
+        (!('editorNote' in data) || (data.editorNote is string && data.editorNote.size() <= 1000)) &&
+        (!('editorNoteUpdatedAt' in data) || (data.editorNoteUpdatedAt is timestamp)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAuthorProfile(data, authorId) {
+      return data.keys().hasAll(['uid', 'penName', 'status', 'approvedBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'penName', 'bio', 'status', 'approvedBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.uid == authorId &&
+        data.penName is string && data.penName.size() >= 2 && data.penName.size() <= 100 &&
+        (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
+        data.status in ['active', 'suspended'] &&
+        data.approvedBy is string && data.approvedBy.size() >= 1 && data.approvedBy.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAuthorInvite(data, emailLower) {
+      return data.keys().hasAll(['email', 'penName', 'status', 'invitedBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['email', 'penName', 'bio', 'status', 'invitedBy', 'createdAt', 'updatedAt']) &&
+        data.email is string && data.email.size() >= 5 && data.email.size() <= 128 &&
+        data.email.lower() == emailLower &&
+        data.penName is string && data.penName.size() >= 2 && data.penName.size() <= 100 &&
+        (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
+        data.status in ['active', 'revoked'] &&
+        data.invitedBy is string && data.invitedBy.size() >= 1 && data.invitedBy.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAuthorRequest(data, requestId) {
+      return data.keys().hasAll(['uid', 'email', 'penName', 'reason', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'penName', 'bio', 'reason', 'status', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.uid == requestId &&
+        data.email is string && data.email.size() >= 5 && data.email.size() <= 128 &&
+        data.penName is string && data.penName.size() >= 2 && data.penName.size() <= 100 &&
+        (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
+        data.reason is string && data.reason.size() >= 5 && data.reason.size() <= 600 &&
+        data.status in ['pending', 'approved', 'rejected'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // 1. Prose Works
+    match /proses/{proseId} {
+      allow get: if isValidId(proseId) && (
+        existing().status == 'published' ||
+        isAdmin() ||
+        (isVerifiedUser() && existing().authorUid == request.auth.uid)
+      );
+
+      // List enforces status == 'published', author ownership, or bootstrapped admin without get()/exists()
+      allow list: if existing().status == 'published' ||
+        isBootstrappedAdmin() ||
+        (isVerifiedUser() && existing().authorUid == request.auth.uid);
+
+      allow create: if isValidId(proseId) &&
+        isValidProse(incoming()) &&
+        incoming().id == proseId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isApprovedAuthor() &&
+            incoming().authorUid == request.auth.uid &&
+            incoming().featuredRank == 'archive' &&
+            incoming().status in ['published', 'draft'] &&
+            !('editorNote' in incoming()) &&
+            !('editorNoteUpdatedAt' in incoming())
+          )
+        );
+
+      allow update: if isValidId(proseId) &&
+        isValidProse(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isApprovedAuthor() &&
+            existing().authorUid == request.auth.uid &&
+            incoming().authorUid == existing().authorUid &&
+            incoming().featuredRank == existing().featuredRank &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'subtitle',
+              'author',
+              'theme',
+              'epigraph',
+              'pullQuote',
+              'excerpt',
+              'body',
+              'image',
+              'imageCaption',
+              'status',
+              'marginNotes',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isValidId(proseId) && (
+        isAdmin() ||
+        (isApprovedAuthor() && existing().authorUid == request.auth.uid)
+      );
+    }
+
+    // 2. Approved Author Profiles (No PII)
+    match /authors/{authorId} {
+      allow get: if isValidId(authorId);
+      allow list: if true;
+
+      allow create: if isValidId(authorId) &&
+        isValidAuthorProfile(incoming(), authorId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(authorId) &&
+            incoming().status == 'active' &&
+            request.auth.token.email is string &&
+            exists(/databases/$(database)/documents/authorInvites/$(request.auth.token.email.lower())) &&
+            get(/databases/$(database)/documents/authorInvites/$(request.auth.token.email.lower())).data.status == 'active'
+          )
+        );
+
+      allow update: if isValidId(authorId) &&
+        isValidAuthorProfile(incoming(), authorId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(authorId) &&
+            existing().status == 'active' &&
+            incoming().status == existing().status &&
+            incoming().approvedBy == existing().approvedBy &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['penName', 'bio', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(authorId) && isAdmin();
+    }
+
+    // 3. Admin-created Author Invites (PII protected)
+    match /authorInvites/{emailLower} {
+      allow get: if isValidEmailKey(emailLower) && (
+        isAdmin() ||
+        (isVerifiedUser() && request.auth.token.email is string && request.auth.token.email.lower() == emailLower)
+      );
+      allow list: if isBootstrappedAdmin();
+
+      allow create: if isValidEmailKey(emailLower) &&
+        isAdmin() &&
+        isValidAuthorInvite(incoming(), emailLower) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidEmailKey(emailLower) &&
+        isAdmin() &&
+        isValidAuthorInvite(incoming(), emailLower) &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidEmailKey(emailLower) && isAdmin();
+    }
+
+    // 4. Author Access Requests (PII protected)
+    match /authorRequests/{requestId} {
+      allow get: if isValidId(requestId) && (isOwner(requestId) || isAdmin());
+      allow list: if isBootstrappedAdmin() || (isVerifiedUser() && existing().uid == request.auth.uid);
+
+      allow create: if isValidId(requestId) &&
+        isOwner(requestId) &&
+        isValidAuthorRequest(incoming(), requestId) &&
+        incoming().status == 'pending' &&
+        incoming().email.lower() == request.auth.token.email.lower() &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(requestId) &&
+        isValidAuthorRequest(incoming(), requestId) &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(requestId) &&
+            existing().status == 'pending' &&
+            incoming().status == 'pending' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['penName', 'bio', 'reason', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(requestId) && isAdmin();
+    }
+
+    // 5. Admins registry
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create, update, delete: if isValidId(adminId) && isBootstrappedAdmin();
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll([
+          'id',
+          'recipientUid',
+          'type',
+          'title',
+          'message',
+          'read',
+          'createdBy',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'recipientUid',
+          'type',
+          'title',
+          'message',
+          'relatedProseId',
+          'relatedStatus',
+          'read',
+          'createdBy',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.recipientUid) &&
+        data.type in ['request_status', 'editor_comment', 'draft_status'] &&
+        data.title is string && data.title.size() >= 2 && data.title.size() <= 140 &&
+        data.message is string && data.message.size() >= 2 && data.message.size() <= 600 &&
+        (!('relatedProseId' in data) || (data.relatedProseId is string && data.relatedProseId.size() >= 1 && data.relatedProseId.size() <= 128)) &&
+        (!('relatedStatus' in data) || (data.relatedStatus is string && data.relatedStatus.size() >= 1 && data.relatedStatus.size() <= 40)) &&
+        data.read is bool &&
+        data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // 6. Author Notifications (status updates & editor comments on drafts)
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && (
+        isOwner(existing().recipientUid) || isAdmin()
+      );
+      allow list: if isBootstrappedAdmin() || (
+        isVerifiedUser() && existing().recipientUid == request.auth.uid
+      );
+
+      allow create: if isValidId(notificationId) &&
+        isAdmin() &&
+        isValidNotification(incoming()) &&
+        incoming().id == notificationId &&
+        incoming().read == false &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(notificationId) &&
+        isValidNotification(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().recipientUid == existing().recipientUid &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(existing().recipientUid) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(notificationId) && (
+        isOwner(existing().recipientUid) || isAdmin()
+      );
+    }
+  }
+}

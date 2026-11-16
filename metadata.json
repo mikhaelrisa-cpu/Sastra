@@ -1,0 +1,6 @@
+{
+  "name": "Senandika — Antologi Sastra Prosa Romantis",
+  "description": "Ruang kurasi sastra prosa romantis berbahasa Indonesia: antologi cerita pendek liris, ruang baca tenang dengan catatan diksi, rak kutipan, dan meja tulis pribadi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

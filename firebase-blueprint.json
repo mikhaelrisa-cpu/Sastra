@@ -1,0 +1,165 @@
+{
+  "entities": {
+    "ProseWork": {
+      "title": "ProseWork",
+      "description": "Karya sastra prosa romantis yang terbit di antologi Senandika.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "accession": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "title": { "type": "string", "minLength": 3, "maxLength": 180 },
+        "subtitle": { "type": "string", "minLength": 0, "maxLength": 260 },
+        "author": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "authorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "theme": {
+          "type": "string",
+          "enum": ["Surat & Epistolari", "Melankolia", "Senja & Kota", "Alam & Rindu"]
+        },
+        "year": { "type": "string", "minLength": 4, "maxLength": 10 },
+        "epigraph": { "type": "string", "maxLength": 400 },
+        "pullQuote": { "type": "string", "minLength": 3, "maxLength": 600 },
+        "excerpt": { "type": "string", "minLength": 3, "maxLength": 500 },
+        "body": { "type": "string", "minLength": 20, "maxLength": 50000 },
+        "image": { "type": "string", "maxLength": 650000 },
+        "imageCaption": { "type": "string", "maxLength": 240 },
+        "featuredRank": { "type": "string", "enum": ["lead", "curated", "archive"] },
+        "status": { "type": "string", "enum": ["published", "draft"] },
+        "marginNotes": { "type": "array" },
+        "editorNote": { "type": "string", "maxLength": 1000 },
+        "editorNoteUpdatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "accession",
+        "title",
+        "subtitle",
+        "author",
+        "authorUid",
+        "theme",
+        "year",
+        "pullQuote",
+        "excerpt",
+        "body",
+        "featuredRank",
+        "status",
+        "marginNotes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AuthorProfile": {
+      "title": "AuthorProfile",
+      "description": "Profil penulis terverifikasi yang disetujui oleh admin untuk menerbitkan prosa.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "penName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "approvedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "penName", "status", "approvedBy", "createdAt", "updatedAt"]
+    },
+    "AuthorInvite": {
+      "title": "AuthorInvite",
+      "description": "Akun/undangan penulis yang dibuat langsung oleh admin berdasarkan email Google.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "penName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["active", "revoked"] },
+        "invitedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "penName", "status", "invitedBy", "createdAt", "updatedAt"]
+    },
+    "AuthorRequest": {
+      "title": "AuthorRequest",
+      "description": "Pengajuan akses penulis baru yang menunggu persetujuan admin.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "penName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "reason": { "type": "string", "minLength": 5, "maxLength": 600 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "penName", "reason", "status", "createdAt", "updatedAt"]
+    },
+    "AdminMember": {
+      "title": "AdminMember",
+      "description": "Daftar UID administrator redaksi Senandika.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "role", "createdAt"]
+    },
+    "AuthorNotification": {
+      "title": "AuthorNotification",
+      "description": "Notifikasi untuk penulis mengenai pembaruan status permohonan atau komentar editor pada draf.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recipientUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["request_status", "editor_comment", "draft_status"] },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "message": { "type": "string", "minLength": 2, "maxLength": 600 },
+        "relatedProseId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "relatedStatus": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "read": { "type": "boolean" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "recipientUid",
+        "type",
+        "title",
+        "message",
+        "read",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/proses/{proseId}": {
+      "schema": { "$ref": "#/entities/ProseWork" },
+      "description": "Koleksi utama naskah prosa romantis yang dikurasi admin dan ditulis oleh penulis terverifikasi."
+    },
+    "/authors/{authorId}": {
+      "schema": { "$ref": "#/entities/AuthorProfile" },
+      "description": "Profil resmi penulis yang telah disetujui atau dibuatkan akses oleh admin."
+    },
+    "/authorInvites/{emailLower}": {
+      "schema": { "$ref": "#/entities/AuthorInvite" },
+      "description": "Daftar email penulis yang dibuatkan akun akses secara langsung oleh admin."
+    },
+    "/authorRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/AuthorRequest" },
+      "description": "Permohonan menjadi penulis yang menunggu persetujuan admin."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminMember" },
+      "description": "Pengelola redaksi dengan hak penuh penyuntingan, gambar, penghapusan, dan persetujuan penulis."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/AuthorNotification" },
+      "description": "Notifikasi in-app bagi penulis ketika ada pembaruan status permohonan atau komentar editor pada draf."
+    }
+  }
+}
